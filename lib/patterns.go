@@ -9,6 +9,7 @@ const (
 	es
 	se
 	ss
+	psk
 )
 
 type PatternType string
@@ -24,6 +25,14 @@ var (
 			{e, es},
 			{e, ee},
 			{s, se},
+		},
+	}
+	XKpsk3 = Pattern{
+		PreMessages: []step{s},
+		Steps: [][]step{
+			{e, es},
+			{e, ee},
+			{s, se, psk},
 		},
 	}
 )

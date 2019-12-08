@@ -5,6 +5,10 @@ import (
 	"errors"
 )
 
+var (
+	ErrPSKReuse = errors.New("potential PSK reuse, please mix ephemeral before encrypting with mixed PSK")
+)
+
 type HandshakeState struct {
 	Initiator bool
 
@@ -17,6 +21,10 @@ type HandshakeState struct {
 	prologue string
 
 	sstate SymmetricState
+
+	pskEnabled               bool
+	pskMaterial              [32]byte
+	mixedPsk, mixedEphemeral bool // encryption is disallowed if sentPsk is true but sentEphemeral is false
 }
 
 func NewHandshakeI(pattern PatternType) HandshakeState {
@@ -40,6 +48,12 @@ func (h HandshakeState) WithRemoteStatic(pub [32]byte) HandshakeState {
 
 func (h HandshakeState) WithPrologue(prologue string) HandshakeState {
 	h.prologue = prologue
+	return h
+}
+
+func (h HandshakeState) WithPSK(psk [32]byte) HandshakeState {
+	h.pskEnabled = true
+	h.pskMaterial = psk
 	return h
 }
 
@@ -81,6 +95,10 @@ func (h *HandshakeState) WriteMessage(payload, buf []byte) ([]byte, error) {
 			h.localEphemeralPriv, h.localEphemeralPub = GenerateKey(rand.Reader)
 			h.sstate.MixHash(h.localEphemeralPub[:])
 			buf = append(buf, h.localEphemeralPub[:]...)
+			if h.pskEnabled {
+				h.sstate.MixKey(h.localEphemeralPub[:])
+				h.mixedEphemeral = true
+			}
 		case s:
 			buf, err = h.sstate.EncryptAndHash(h.localStaticPub[:], buf)
 			if err != nil {
@@ -108,7 +126,13 @@ func (h *HandshakeState) WriteMessage(payload, buf []byte) ([]byte, error) {
 		case ss:
 			rst := DH(h.localStaticPriv, h.remoteStaticPub)
 			h.sstate.MixKey(rst[:])
+		case psk:
+			h.mixedPsk = true
+			h.sstate.MixKeyAndHash(h.pskMaterial[:])
 		}
+	}
+	if h.mixedPsk && !h.mixedEphemeral {
+		return nil, ErrPSKReuse
 	}
 	h.patternStep++
 	return h.sstate.EncryptAndHash(payload, buf)
@@ -126,6 +150,10 @@ func (h *HandshakeState) ReadMessage(message, buf []byte) ([]byte, error) {
 			copy(h.remoteEphemeralPub[:], message)
 			h.sstate.MixHash(h.remoteEphemeralPub[:])
 			message = message[32:]
+			if h.pskEnabled {
+				h.sstate.MixKey(h.remoteEphemeralPub[:])
+				h.mixedEphemeral = true
+			}
 		case s:
 			var temp []byte
 			if h.sstate.HasKey() {
@@ -161,6 +189,9 @@ func (h *HandshakeState) ReadMessage(message, buf []byte) ([]byte, error) {
 		case ss:
 			rst := DH(h.localStaticPriv, h.remoteStaticPub)
 			h.sstate.MixKey(rst[:])
+		case psk:
+			h.mixedPsk = true
+			h.sstate.MixKeyAndHash(h.pskMaterial[:])
 		}
 	}
 	h.patternStep++

@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	ErrPSKReuse = errors.New("potential PSK reuse, please mix ephemeral before encrypting with mixed PSK")
+	ErrPSKReuse              = errors.New("potential PSK reuse, please mix ephemeral before encrypting with mixed PSK")
+	ErrSigVerificationFailed = errors.New("signature verification failed")
 )
 
 type HandshakeState struct {
@@ -57,7 +58,7 @@ func (h HandshakeState) WithPSK(psk [32]byte) HandshakeState {
 	return h
 }
 
-func (h *HandshakeState) Init() error {
+func (h HandshakeState) Init() HandshakeState {
 	h.sstate.Initialize("Noise_XK_25519_ChaChaPoly_SHA256")
 	h.sstate.MixHash([]byte(h.prologue))
 	pattern := GetPattern(h.pattern)
@@ -80,7 +81,7 @@ func (h *HandshakeState) Init() error {
 			}
 		}
 	}
-	return nil
+	return h
 }
 
 func (h *HandshakeState) WriteMessage(payload, buf []byte) ([]byte, error) {
@@ -129,6 +130,18 @@ func (h *HandshakeState) WriteMessage(payload, buf []byte) ([]byte, error) {
 		case psk:
 			h.mixedPsk = true
 			h.sstate.MixKeyAndHash(h.pskMaterial[:])
+		case sig:
+			// FIXME should store keys of arbitrary lengths
+			key := [64]byte{}
+			copy(key[:], h.localStaticPriv[:])
+			copy(key[32:], h.localEphemeralPub[:])
+			hash := h.sstate.GetHandshakeHash()
+			sig := [64]byte{}
+			_ = GenerateSignagure(key[:], hash[:], sig[:0])
+			buf, err = h.sstate.EncryptAndHash(sig[:], buf)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	if h.mixedPsk && !h.mixedEphemeral {
@@ -192,6 +205,18 @@ func (h *HandshakeState) ReadMessage(message, buf []byte) ([]byte, error) {
 		case psk:
 			h.mixedPsk = true
 			h.sstate.MixKeyAndHash(h.pskMaterial[:])
+		case sig:
+			cSig := message[:80]
+			sig := make([]byte, 64)
+			sig, err = h.sstate.DecryptAndHash(cSig, sig)
+			if err != nil {
+				return nil, err
+			}
+			hash := h.sstate.GetHandshakeHash()
+			if !VerifySignature(h.remoteStaticPub[:], hash[:], sig) {
+				return nil, ErrSigVerificationFailed
+			}
+			message = message[80:]
 		}
 	}
 	h.patternStep++
@@ -204,5 +229,9 @@ func (h *HandshakeState) Complete() bool {
 }
 
 func (h *HandshakeState) Split() (CipherState, CipherState) {
-	return h.sstate.Split()
+	r, w := h.sstate.Split()
+	if !h.Initiator {
+		return w, r
+	}
+	return r, w
 }

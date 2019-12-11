@@ -10,12 +10,15 @@ const (
 	se
 	ss
 	psk
+	sig
 )
 
 type PatternType string
 
 const (
-	xk PatternType = "XK"
+	xk     PatternType = "XK"
+	xkpsk3 PatternType = "XKpsk3"
+	xxsig  PatternType = "XXSig"
 )
 
 var (
@@ -35,6 +38,13 @@ var (
 			{s, se, psk},
 		},
 	}
+	XXSig = Pattern{
+		Steps: [][]step{
+			{e},
+			{e, ee, sig},
+			{sig},
+		},
+	}
 )
 
 type Pattern struct {
@@ -50,6 +60,8 @@ func GetPattern(pattern PatternType) Pattern {
 	switch pattern {
 	case xk:
 		return XK
+	case xkpsk3:
+		return XKpsk3
 	default:
 		panic("unknown pattern")
 	}

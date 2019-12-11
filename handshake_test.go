@@ -13,10 +13,8 @@ func TestHandshake(t *testing.T) {
 		err           error
 	)
 
-	hi := NewHandshakeI(xk).WithLocalStatic(k1Priv, k1Pub).WithRemoteStatic(k2Pub)
-	hi.Init()
-	h := NewHandshake(xk).WithLocalStatic(k2Priv, k2Pub)
-	h.Init()
+	hi := NewHandshakeI(xk).WithLocalStatic(k1Priv, k1Pub).WithRemoteStatic(k2Pub).Init()
+	h := NewHandshake(xk).WithLocalStatic(k2Priv, k2Pub).Init()
 
 	require.Equal(t, hi.sstate.hash, h.sstate.hash)
 
@@ -47,9 +45,19 @@ func TestHandshake(t *testing.T) {
 	require.True(t, hi.Complete())
 	require.True(t, h.Complete())
 
-	hiC1, hiC2 := hi.Split()
-	hC1, hC2 := h.Split()
+	r1, w1 := hi.Split()
+	r2, w2 := h.Split()
 
-	require.Equal(t, hiC1, hC1)
-	require.Equal(t, hiC2, hC2)
+	require.Equal(t, r1, w2)
+	require.Equal(t, r2, w1)
+
+	msg := []byte("hello")
+	cipher, err := r1.Encrypt(nil, msg, nil)
+	require.NoError(t, err)
+	require.Len(t, cipher, len(msg)+16)
+
+	plain, err := w2.Decrypt(nil, cipher, nil)
+	require.NoError(t, err)
+	require.Equal(t, msg, plain)
+
 }

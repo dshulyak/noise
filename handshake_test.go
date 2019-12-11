@@ -13,8 +13,8 @@ func TestHandshake(t *testing.T) {
 		err           error
 	)
 
-	hi := NewHandshakeI(xk).WithLocalStatic(k1Priv, k1Pub).WithRemoteStatic(k2Pub).Init()
-	h := NewHandshake(xk).WithLocalStatic(k2Priv, k2Pub).Init()
+	hi := NewHandshakeI(XK).WithLocalStatic(k1Priv, k1Pub).WithRemoteStatic(k2Pub).Init()
+	h := NewHandshake(XK).WithLocalStatic(k2Priv, k2Pub).Init()
 
 	require.Equal(t, hi.sstate.hash, h.sstate.hash)
 

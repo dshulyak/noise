@@ -6,12 +6,15 @@ import (
 )
 
 const (
+	Overhead   = 16 // it should be configurable
 	RekeyNonce = ^uint64(0)
 	MaxNonce   = RekeyNonce - 1
+	MaxMsgSize = int(^uint16(0)) - Overhead
 )
 
 var (
 	ErrNonceOverlow = errors.New("nonce overlow")
+	ErrMsgTooBig    = errors.New("message too big")
 )
 
 type CipherState struct {
@@ -36,6 +39,9 @@ func (state *CipherState) SetNonce(nonce uint64) {
 }
 
 func (state *CipherState) Encrypt(data, plaintext, buf []byte) (rst []byte, err error) {
+	if len(plaintext) > MaxMsgSize {
+		return buf, ErrMsgTooBig
+	}
 	if state.nonce > MaxNonce {
 		return buf, ErrNonceOverlow
 	}
@@ -49,6 +55,9 @@ func (state *CipherState) Encrypt(data, plaintext, buf []byte) (rst []byte, err 
 }
 
 func (state *CipherState) Decrypt(adata, ciphertext, buf []byte) (rst []byte, err error) {
+	if len(ciphertext) > MaxMsgSize {
+		return buf, ErrMsgTooBig
+	}
 	if state.nonce > MaxNonce {
 		return buf, ErrNonceOverlow
 	}

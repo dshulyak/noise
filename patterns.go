@@ -16,13 +16,13 @@ const (
 type PatternType string
 
 const (
-	xk     PatternType = "XK"
-	xkpsk3 PatternType = "XKpsk3"
-	xxsig  PatternType = "XXSig"
+	XK     PatternType = "XK"
+	XKpsk3 PatternType = "XKpsk3"
+	XXsig  PatternType = "XXSig"
 )
 
 var (
-	XK = Pattern{
+	xk = Pattern{
 		PreMessages: []step{s},
 		Steps: [][]step{
 			{e, es},
@@ -30,7 +30,7 @@ var (
 			{s, se},
 		},
 	}
-	XKpsk3 = Pattern{
+	xkpsk3 = Pattern{
 		PreMessages: []step{s},
 		Steps: [][]step{
 			{e, es},
@@ -38,7 +38,7 @@ var (
 			{s, se, psk},
 		},
 	}
-	XXSig = Pattern{
+	xxsig = Pattern{
 		Steps: [][]step{
 			{e},
 			{e, ee, sig},
@@ -58,10 +58,10 @@ func (p Pattern) Len() int {
 
 func GetPattern(pattern PatternType) Pattern {
 	switch pattern {
-	case xk:
-		return XK
-	case xkpsk3:
-		return XKpsk3
+	case XK:
+		return xk
+	case XKpsk3:
+		return xkpsk3
 	default:
 		panic("unknown pattern")
 	}
